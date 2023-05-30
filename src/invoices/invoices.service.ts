@@ -139,7 +139,7 @@ export class InvoicesService {
 	}
 
 	async update(id: string, dto: CreateInvoiceDto) {
-		console.log(1222);
+		console.log('Update');
 		const {
 			inn,
 			firm,
@@ -149,6 +149,14 @@ export class InvoicesService {
 			lastDate,
 			...invoiceData
 		} = dto;
+
+		const oldInvoice = await this.prismaService.invoice.findUnique({
+			where: { id },
+		});
+
+		const isChangedSum =
+			dto.sum && oldInvoice?.sum && !(oldInvoice.sum === dto.sum);
+		const changedSumDates = [...oldInvoice.changedSumDates, new Date()];
 
 		const [sDay, sMonth, sYear] = startDate.split('.');
 		const sDate = new Date(+sYear, +sMonth - 1, +sDay);
@@ -170,15 +178,21 @@ export class InvoicesService {
 		});
 
 		try {
-			console.log(
-				invoiceData,
-				sDate,
-				lDate,
-				supplierDto,
-				supplier,
-				company,
-			);
-			const invoice = await this.prismaService.invoice.update({
+			if (isChangedSum) {
+				return await this.prismaService.invoice.update({
+					where: { id },
+					data: {
+						...invoiceData,
+						startDate: sDate,
+						lastDate: lDate,
+						supplierId: supplier.id,
+						companiesId: company.id,
+						changedSum: true,
+						changedSumDates,
+					},
+				});
+			}
+			return await this.prismaService.invoice.update({
 				where: { id },
 				data: {
 					...invoiceData,
@@ -188,8 +202,6 @@ export class InvoicesService {
 					companiesId: company.id,
 				},
 			});
-
-			return invoice;
 		} catch (error) {
 			console.log(error);
 			throw new BadRequestException('Incorrect data');
